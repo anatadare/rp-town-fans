@@ -1,0 +1,15 @@
+name = "valentina-bot"
+main = "src/worker.js"
+compatibility_date = "2024-01-01"
+
+# KV Namespace untuk simpan history chat
+# Buat dulu dengan: wrangler kv:namespace create VALENTINA_KV
+[[kv_namespaces]]
+binding = "VALENTINA_KV"
+id = "GANTI_DENGAN_KV_NAMESPACE_ID_KAMU"
+preview_id = "GANTI_DENGAN_PREVIEW_ID_KAMU"
+
+# Model config (step-5-unrestricted)
+[vars]
+MODEL_API_URL = "https://api.stepfun.com/v1/chat/completions"
+MODEL_NAME = "step-5-unrestricted"
