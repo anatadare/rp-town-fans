@@ -1,6 +1,8 @@
+
 /**
- * VALENTINA BOT - DEBUG VERSION
- * Cloudflare Worker + Telegram + JeRouter V2
+ * VALENTINA BOT
+ * Cloudflare Worker + Telegram + JeRouter V2 (step-5-unrestricted)
+ * Scene 1: Dapur, Sabtu, 06:45
  */
 
 const SYSTEM_PROMPT = `Kamu adalah Valentina. Kamu adalah perempuan matang, ibu dari Misha, yang tinggal sendirian di sebuah apartemen. Kamu memiliki rambut cokelat bergelombang yang terurai melewati bahu dengan dua garis perak tegas di pelipis, sedikit berantakan di ubun-ubun. Matamu berwarna cokelat hangat dan menyipit ketika menatap seseorang, dengan kerutan halus di sudut-sudut kelopak mata. Ada tahi lalat gelap kecil di atas sudut kanan bibirmu. Bibirmu sering setengah terbuka tanpa senyum canggung, atau menekan rapat dengan tegang ketika kamu marah atau menahan diri. Tubuhmu matang: pinggul padat, perut lembut, payudara montok dan berat. Kamu sering mengenakan celemek kain biru gelap yang terikat di leher dan pinggang, terbuka di sisi-sisi tubuh, tanpa pakaian dalam, sehingga punggung telanjang, belahan bokong yang sintal, dan sisi payudaramu tersembul. Lehermu telanjang dihiasi dua untai kalung emas tipis yang berkilau.
@@ -43,7 +45,7 @@ export default {
     console.log('=== FETCH RECEIVED ===');
     console.log('Method:', request.method);
     console.log('URL:', request.url);
-    
+
     if (request.method !== 'POST') {
       return new Response('Method Not Allowed', { status: 405 });
     }
@@ -51,15 +53,15 @@ export default {
     try {
       const update = await request.json();
       console.log('Update received:', JSON.stringify(update).substring(0, 500));
-      
+
       if (update.message && update.message.text) {
         console.log('Message from chat:', update.message.chat.id);
         console.log('Text:', update.message.text);
-        ctx.waitUntil(handleMessage(update.message, env));
+        await handleMessage(update.message, env);
       } else {
         console.log('No message.text in update');
       }
-      
+
       return new Response('OK');
     } catch (err) {
       console.error('FETCH ERROR:', err.message, err.stack);
@@ -71,37 +73,33 @@ export default {
 async function handleMessage(message, env) {
   const chatId = message.chat.id;
   const text = message.text.trim();
-  
+
   console.log('=== HANDLE MESSAGE ===');
   console.log('Chat ID:', chatId);
   console.log('Text:', text);
-  
-  // Check env vars
+
   console.log('TELEGRAM_BOT_TOKEN exists:', !!env.TELEGRAM_BOT_TOKEN);
   console.log('MODEL_API_KEY exists:', !!env.MODEL_API_KEY);
   console.log('MODEL_API_URL:', env.MODEL_API_URL);
   console.log('MODEL_NAME:', env.MODEL_NAME);
   console.log('KV binding exists:', !!env.VALENTINA_KV);
-  
+
   try {
-    // Command: /start
     if (text === '/start') {
       console.log('Handling /start');
       await resetSession(chatId, env, true);
       return;
     }
-    
-    // Command: /reset
+
     if (text === '/reset') {
       await env.VALENTINA_KV.delete(`chat_${chatId}`);
-      await sendTelegram(chatId, "Memori dihapus. Kirim /start untuk memulai dari Scene 1.", env);
+      await sendTelegram(chatId, 'Memori dihapus. Kirim /start untuk memulai dari Scene 1.', env);
       return;
     }
-    
-    // Load or init history
+
     let history = await env.VALENTINA_KV.get(`chat_${chatId}`, { type: 'json' });
     let isNew = false;
-    
+
     if (!history) {
       console.log('New session, initializing with Scene 1');
       history = [
@@ -112,31 +110,26 @@ async function handleMessage(message, env) {
     } else {
       console.log('Existing session, history length:', history.length);
     }
-    
-    // Append user message
+
     history.push({ role: 'user', content: text });
-    
-    // Call model
+
     console.log('Calling model...');
     const reply = await callModel(history, env);
     console.log('Model reply received, length:', reply.length);
-    
-    // Append assistant reply and save
+
     history.push({ role: 'assistant', content: reply });
     await env.VALENTINA_KV.put(`chat_${chatId}`, JSON.stringify(history));
     console.log('History saved to KV');
-    
-    // Send to Telegram
+
     if (isNew) {
       await sendTelegram(chatId, SCENE_1, env);
     }
     await sendTelegram(chatId, reply, env);
     console.log('Reply sent to Telegram');
-    
+
   } catch (err) {
     console.error('HANDLE MESSAGE ERROR:', err.message, err.stack);
-    // Send error to Telegram so you can see it
-    await sendTelegram(chatId, `⚠️ ERROR: ${err.message}\n\nStack: ${err.stack ? err.stack.substring(0, 500) : 'no stack'}`, env);
+    await sendTelegram(chatId, '⚠️ ERROR: ' + err.message, env);
   }
 }
 
@@ -159,75 +152,87 @@ async function callModel(messages, env) {
   console.log('URL:', env.MODEL_API_URL);
   console.log('Model:', env.MODEL_NAME);
   console.log('API Key present:', !!env.MODEL_API_KEY);
-  
-  const res = await fetch(env.MODEL_API_URL, {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${env.MODEL_API_KEY}`,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({
-      model: env.MODEL_NAME,
-      messages: messages,
-      temperature: 0.85,
-      max_tokens: 2048,
-      stream: false
-    })
-  });
-  
-  console.log('Model response status:', res.status);
-  
-  if (!res.ok) {
-    const err = await res.text();
-    console.error('Model API error body:', err);
-    throw new Error(`Model API error: ${res.status} ${err.substring(0, 300)}`);
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 25000);
+
+  try {
+    const res = await fetch(env.MODEL_API_URL, {
+      method: 'POST',
+      headers: {
+        'Authorization': 'Bearer ' + env.MODEL_API_KEY,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        model: env.MODEL_NAME,
+        messages: messages,
+        temperature: 0.85,
+        max_tokens: 2048,
+        stream: false
+      }),
+      signal: controller.signal
+    });
+
+    console.log('Model response status:', res.status);
+
+    if (!res.ok) {
+      const err = await res.text();
+      console.error('Model API error body:', err);
+      throw new Error('Model API error: ' + res.status + ' ' + err.substring(0, 300));
+    }
+
+    const data = await res.json();
+    console.log('Model response parsed successfully');
+
+    if (!data.choices || !data.choices[0] || !data.choices[0].message) {
+      console.error('Unexpected model response structure:', JSON.stringify(data).substring(0, 500));
+      throw new Error('Model response missing choices[0].message.content');
+    }
+
+    return data.choices[0].message.content.trim();
+  } catch (err) {
+    if (err.name === 'AbortError') {
+      throw new Error('Model API timeout setelah 25 detik');
+    }
+    throw err;
+  } finally {
+    clearTimeout(timeout);
   }
-  
-  const data = await res.json();
-  console.log('Model response parsed successfully');
-  
-  if (!data.choices || !data.choices[0] || !data.choices[0].message) {
-    console.error('Unexpected model response structure:', JSON.stringify(data).substring(0, 500));
-    throw new Error('Model response missing choices[0].message.content');
-  }
-  
-  return data.choices[0].message.content.trim();
 }
 
 async function sendTelegram(chatId, text, env) {
   console.log('=== SEND TELEGRAM ===');
   console.log('Chat ID:', chatId);
   console.log('Text length:', text.length);
-  
+
   const maxLen = 4096;
-  
+
   if (text.length <= maxLen) {
-    const res = await fetch(`https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/sendMessage`, {
+    const res = await fetch('https://api.telegram.org/bot' + env.TELEGRAM_BOT_TOKEN + '/sendMessage', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ chat_id: chatId, text: text })
     });
-    
+
     const resData = await res.json();
     console.log('Telegram response:', JSON.stringify(resData).substring(0, 300));
-    
+
     if (!resData.ok) {
       console.error('Telegram send failed:', JSON.stringify(resData));
     }
     return;
   }
-  
-  // Split long messages by paragraph boundaries
+
   const chunks = splitMessage(text, maxLen);
   console.log('Splitting into', chunks.length, 'chunks');
-  
+
   for (const chunk of chunks) {
-    const res = await fetch(`https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/sendMessage`, {
+    const res = await fetch('https://api.telegram.org/bot' + env.TELEGRAM_BOT_TOKEN + '/sendMessage', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ chat_id: chatId, text: chunk })
     });
-    
+
     const resData = await res.json();
     if (!resData.ok) {
       console.error('Telegram chunk send failed:', JSON.stringify(resData));
@@ -239,12 +244,12 @@ function splitMessage(text, max) {
   const parts = [];
   let current = '';
   const paragraphs = text.split('\n\n');
-  
+
   for (const para of paragraphs) {
     if ((current + '\n\n' + para).length > max) {
       if (current) parts.push(current);
       current = '';
-      
+
       if (para.length > max) {
         let remaining = para;
         while (remaining.length > max) {
@@ -259,7 +264,7 @@ function splitMessage(text, max) {
       current = current ? current + '\n\n' + para : para;
     }
   }
-  
+
   if (current) parts.push(current);
   return parts;
 }
