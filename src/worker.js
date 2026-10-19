@@ -1,6 +1,6 @@
 /**
  * VALENTINA BOT
- * Cloudflare Worker + Telegram + step-5-unrestricted
+ * Cloudflare Worker + Telegram + JeRouter V2 (step-5-unrestricted)
  * Scene 1: Dapur, Sabtu, 06:45
  */
 
