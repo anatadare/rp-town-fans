@@ -5,8 +5,8 @@ compatibility_date = "2024-01-01"
 # KV Namespace buat simpan history chat
 [[kv_namespaces]]
 binding = "VALENTINA_KV"
-id = "GANTI_DENGAN_KV_NAMESPACE_ID_KAMU"
-preview_id = "GANTI_DENGAN_PREVIEW_ID_KAMU"
+id = "ae086f495d534a16b823026854679cbf"
+preview_id = "ae086f495d534a16b823026854679cbf"
 
 # Model config (JeRouter V2 → step-5-unrestricted)
 [vars]
